@@ -1,32 +1,67 @@
+#include "hzpch.h"
 #include "Application.h"
 
 
-#include "Hazel/Events/ApplicationEvent.h"
+
 #include "Hazel/Log.h"
 
+#include <glad/glad.h>
 
 namespace Hazel {
-	Application::Application() {
 
+#define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
+
+	Application::Application() {
+		m_Window = std::unique_ptr<Window>(Window::Create());
+		m_Window->SetEventCallback(BIND_EVENT_FN(onEvent));
+
+	
 	}
 
 	Application::~Application() {
 
 	}
 
+	void Application::PushLayer(Layer* layer) {
+		m_LayerStack.PushLayer(layer);
+	}
+
+	void Application::PushOverLayer(Layer* layer) {
+		m_LayerStack.PushOverLayer(layer);
+	}
+
+	void Application::onEvent(Event& e)
+	{
+		EventDispatcher dispatcher(e);
+		dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(onWindowClose));
+
+		//HZ_CORE_TRACE("{0}", e);
+		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
+		{
+			(*--it)->OnEvent(e);
+			if (e.Handled)
+				break;
+		}
+	}
+
 	void Application::Run() 
 	{
-		WindowResizeEvent e(1280, 720);
-		if (e.IsInCategory(EventCategoryApplication))
+		while (m_Running)
 		{
-			HZ_TRACE(e);
-		}
-		if (e.IsInCategory(EventCategoryInput))
-		{
-			HZ_TRACE(e);
-		}
-		
+			glClearColor(1, 0, 1, 1);
+			glClear(GL_COLOR_BUFFER_BIT);
+			for (Layer* layer : m_LayerStack)
+				layer->OnUpdate();
 
-		while (true);
+			m_Window->OnUpdate();
+		}
+	}
+
+
+	bool Application::onWindowClose(WindowCloseEvent& e) 
+	{
+		m_Running = false;
+
+		return true;
 	}
 }
